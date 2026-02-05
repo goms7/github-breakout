@@ -28,7 +28,7 @@ const PARTICLE_DURATION = 1.0; // 0.5초에서 1.0초로 연장
 export type ColorPalette = [string, string, string, string, string];
 
 const GITHUB_LIGHT: ColorPalette = ["#ebedf0", "#fbc2eb", "#fa71cd", "#d83395", "#a61265"];
-const GITHUB_DARK: ColorPalette = ["#151B23", "#4a004a", "#7b007b", "#b900b9", "#ff00ff"];
+const GITHUB_DARK: ColorPalette = ["#151B23", "#1a4a1a", "#2d7a2d", "#39b039", "#39ff14"];
 
 export interface Options {
   enableGhostBricks?: boolean;
@@ -75,21 +75,22 @@ function simulate(bricks: Brick[], canvasWidth: number, canvasHeight: number, pa
   let ballX = canvasWidth / 2; let ballY = canvasHeight - 30;
   let ballVelocityX = BALL_SPEED * Math.cos(-Math.PI / 4); let ballVelocityY = BALL_SPEED * Math.sin(-Math.PI / 4);
   const simulatedBricks: Brick[] = bricks.map((b) => ({ ...b }));
-  const frameHistory: {ballX: number, ballY: number, paddleX: number, bricks: BrickStatus[], hit: boolean}[] = [];
+  const frameHistory: {ballX: number, ballY: number, paddleX: number, bricks: BrickStatus[], hitBrickIndex: number}[] = [];
   let currentFrame = 0;
   while (simulatedBricks.some((b) => b.status === "visible" && (!enableGhostBricks || b.hasCommit)) && currentFrame < MAX_FRAMES) {
-    let hitThisFrame = false;
+    let hitBrickIndex = -1;
     let paddleX = Math.max(PADDING, Math.min(canvasWidth - PADDING - PADDLE_WIDTH, ballX - PADDLE_WIDTH / 2));
     ballX += ballVelocityX; ballY += ballVelocityY;
     if (ballX > canvasWidth - PADDING - BALL_RADIUS || ballX < PADDING + BALL_RADIUS) ballVelocityX = -ballVelocityX;
     if (ballY < PADDING + BALL_RADIUS) ballVelocityY = -ballVelocityY;
     if (ballVelocityY > 0 && ballY + ballVelocityY + BALL_RADIUS >= paddleY && ballY + BALL_RADIUS <= paddleY) { ballVelocityY = -Math.abs(ballVelocityY); ballY = paddleY - BALL_RADIUS; }
-    for (const brick of simulatedBricks) {
+    for (let i = 0; i < simulatedBricks.length; i++) {
+      const brick = simulatedBricks[i];
       if (brick.status === "visible" && (!enableGhostBricks || brick.hasCommit) && circleRectCollision(ballX, ballY, BALL_RADIUS, brick.x, brick.y, BRICK_SIZE, BRICK_SIZE)) {
-        ballVelocityY = -ballVelocityY; brick.status = "hidden"; hitThisFrame = true; break;
+        ballVelocityY = -ballVelocityY; brick.status = "hidden"; hitBrickIndex = i; break;
       }
     }
-    frameHistory.push({ ballX, ballY, paddleX, bricks: simulatedBricks.map((b) => b.status), hit: hitThisFrame });
+    frameHistory.push({ ballX, ballY, paddleX, bricks: simulatedBricks.map((b) => b.status), hitBrickIndex });
     currentFrame++;
   }
   return frameHistory;
@@ -125,7 +126,7 @@ export async function generateSVG(username: string, githubToken: string, options
   const animationDuration = states.length * SECONDS_PER_FRAME;
 
   // 1. 공 색상 애니메이션 생성 (충돌 시 빨간색)
-  const ballFillValues = states.map(s => s.hit ? "#ff0000" : ballColor);
+  const ballFillValues = states.map(s => s.hitBrickIndex !== -1 ? "#ff0000" : ballColor);
 
   const style = `<style>${colorPalette.map((color, i) => `.c${i}{fill:${color}}`).join("")}</style>`;
   const brickSymbol = `<defs><symbol id="brick"><rect width="${BRICK_SIZE}" height="${BRICK_SIZE}" rx="${BRICK_RADIUS}"/></symbol></defs>`;
@@ -134,9 +135,9 @@ export async function generateSVG(username: string, githubToken: string, options
   let particles = "";
 
   bricks.forEach((brick, i) => {
-    let firstZero = states.findIndex(s => s.bricks[i] !== "visible");
-    if (firstZero !== -1) {
-      const tStart = firstZero / (states.length - 1);
+    let hitFrame = states.findIndex(s => s.hitBrickIndex === i);
+    if (hitFrame !== -1) {
+      const tStart = hitFrame / (states.length - 1);
       const tEnd = Math.min(1, tStart + PARTICLE_DURATION / animationDuration);
       const origColor = colorPalette[parseInt(brick.colorClass.replace("c", ""))] || colorPalette[0];
       
@@ -155,20 +156,6 @@ export async function generateSVG(username: string, githubToken: string, options
       brickUses += `<use href="#brick" x="${brick.x}" y="${brick.y}" class="${brick.colorClass}"/>`;
     }
   });
-
-  /**
-   * 3. 우측 하단 테스트 파티클 (무한 반복)
-   */
-  const tx = canvasWidth - PADDING - 20;
-  const ty = canvasHeight - PADDING - 20;
-  for (let j = 0; j < 8; j++) {
-    const angle = (j * Math.PI * 2) / 8;
-    particles += `<circle r="3" fill="#ff00ff">
-      <animate attributeName="cx" values="${tx};${tx + Math.cos(angle)*30}" dur="1.5s" repeatCount="indefinite"/>
-      <animate attributeName="cy" values="${ty};${ty + Math.sin(angle)*30}" dur="1.5s" repeatCount="indefinite"/>
-      <animate attributeName="opacity" values="1;0" dur="1.5s" repeatCount="indefinite"/>
-    </circle>`;
-  }
 
   const paddleRect = `<g transform="translate(0,${paddleY})"><rect width="${PADDLE_WIDTH}" height="${PADDLE_HEIGHT}" rx="${PADDLE_RADIUS}" fill="${paddleColor}"><animate attributeName="x" values="${getAnimValues(states.map(s => s.paddleX))}" dur="${animationDuration}s" repeatCount="indefinite"/></rect></g>`;
   
