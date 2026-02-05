@@ -27,52 +27,17 @@ const SECONDS_PER_FRAME = 1 / 30;
 const MAX_FRAMES = 30000;
 const BALL_SPEED = 10;
 /**
- * Particle Settings
+ * 2. 파티클 지속시간 1초로 연장
  */
-const PARTICLE_COUNT = 5;
-const PARTICLE_RADIUS = 1.5;
-const PARTICLE_DURATION = 0.5;
-const GITHUB_LIGHT = [
-    "#ebedf0",
-    "#fbc2eb",
-    "#fa71cd",
-    "#d83395",
-    "#a61265",
-];
-// GITHUB_DARK: 어두운 모드용 (네온 핑크 테마)
-const GITHUB_DARK = [
-    "#151B23",
-    "#4a004a",
-    "#7b007b",
-    "#b900b9",
-    "#ff00ff",
-];
+const PARTICLE_COUNT = 8; // 파편 개수 증가
+const PARTICLE_RADIUS = 2; // 파편 크기 증가
+const PARTICLE_DURATION = 1.0; // 0.5초에서 1.0초로 연장
+const GITHUB_LIGHT = ["#ebedf0", "#fbc2eb", "#fa71cd", "#d83395", "#a61265"];
+const GITHUB_DARK = ["#151B23", "#4a004a", "#7b007b", "#b900b9", "#ff00ff"];
 function fetchGithubContributionsGraphQL(userName, githubToken) {
     return __awaiter(this, void 0, void 0, function* () {
-        const query = `
-    query($userName:String!) {
-      user(login: $userName){
-        contributionsCollection {
-          contributionCalendar {
-            weeks {
-              contributionDays {
-                contributionLevel
-                contributionCount
-                color
-              }
-            }
-          }
-        }
-      }
-    }`;
-        const res = yield fetch("https://api.github.com/graphql", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `bearer ${githubToken}`,
-            },
-            body: JSON.stringify({ query, variables: { userName } }),
-        });
+        const query = `query($userName:String!){user(login: $userName){contributionsCollection{contributionCalendar{weeks{contributionDays{contributionLevel contributionCount color}}}}}}`;
+        const res = yield fetch("https://api.github.com/graphql", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `bearer ${githubToken}` }, body: JSON.stringify({ query, variables: { userName } }) });
         if (!res.ok)
             throw new Error(`GitHub API error: ${res.status}`);
         const json = yield res.json();
@@ -83,18 +48,12 @@ function fetchGithubContributionsGraphQL(userName, githubToken) {
             levels[c] = [];
             const days = weeks[c].contributionDays;
             for (let r = 0; r < days.length; r++) {
-                const level = (days[r].contributionLevel === "FOURTH_QUARTILE" && 4) ||
-                    (days[r].contributionLevel === "THIRD_QUARTILE" && 3) ||
-                    (days[r].contributionLevel === "SECOND_QUARTILE" && 2) ||
-                    (days[r].contributionLevel === "FIRST_QUARTILE" && 1) || 0;
+                const level = (days[r].contributionLevel === "FOURTH_QUARTILE" && 4) || (days[r].contributionLevel === "THIRD_QUARTILE" && 3) || (days[r].contributionLevel === "SECOND_QUARTILE" && 2) || (days[r].contributionLevel === "FIRST_QUARTILE" && 1) || 0;
                 defaultColorPalette[level] = days[r].color;
                 levels[c][r] = { level, contributionCount: days[r].contributionCount };
             }
         }
-        return {
-            days: levels,
-            defaultColorPalette: Object.values(defaultColorPalette),
-        };
+        return { days: levels, defaultColorPalette: Object.values(defaultColorPalette) };
     });
 }
 function circleRectCollision(cX, cY, cR, rX, rY, rW, rH) {
@@ -109,41 +68,40 @@ function simulate(bricks, canvasWidth, canvasHeight, paddleY, enableGhostBricks)
     let ballY = canvasHeight - 30;
     let ballVelocityX = BALL_SPEED * Math.cos(-Math.PI / 4);
     let ballVelocityY = BALL_SPEED * Math.sin(-Math.PI / 4);
-    const simulatedBricks = bricks.map((brick) => (Object.assign({}, brick)));
+    const simulatedBricks = bricks.map((b) => (Object.assign({}, b)));
     const frameHistory = [];
     let currentFrame = 0;
-    let paddleX = (canvasWidth - PADDLE_WIDTH) / 2;
     while (simulatedBricks.some((b) => b.status === "visible" && (!enableGhostBricks || b.hasCommit)) && currentFrame < MAX_FRAMES) {
-        paddleX = Math.max(PADDING, Math.min(canvasWidth - PADDING - PADDLE_WIDTH, ballX - PADDLE_WIDTH / 2));
+        let hitThisFrame = false;
+        let paddleX = Math.max(PADDING, Math.min(canvasWidth - PADDING - PADDLE_WIDTH, ballX - PADDLE_WIDTH / 2));
         ballX += ballVelocityX;
         ballY += ballVelocityY;
-        if (ballX + ballVelocityX > canvasWidth - PADDING - BALL_RADIUS || ballX + ballVelocityX < PADDING + BALL_RADIUS)
+        if (ballX > canvasWidth - PADDING - BALL_RADIUS || ballX < PADDING + BALL_RADIUS)
             ballVelocityX = -ballVelocityX;
-        if (ballY + ballVelocityY < PADDING + BALL_RADIUS)
+        if (ballY < PADDING + BALL_RADIUS)
             ballVelocityY = -ballVelocityY;
         if (ballVelocityY > 0 && ballY + ballVelocityY + BALL_RADIUS >= paddleY && ballY + BALL_RADIUS <= paddleY) {
             ballVelocityY = -Math.abs(ballVelocityY);
             ballY = paddleY - BALL_RADIUS;
         }
-        for (let i = 0; i < simulatedBricks.length; i++) {
-            const brick = simulatedBricks[i];
+        for (const brick of simulatedBricks) {
             if (brick.status === "visible" && (!enableGhostBricks || brick.hasCommit) && circleRectCollision(ballX, ballY, BALL_RADIUS, brick.x, brick.y, BRICK_SIZE, BRICK_SIZE)) {
                 ballVelocityY = -ballVelocityY;
                 brick.status = "hidden";
+                hitThisFrame = true;
                 break;
             }
         }
-        if (currentFrame % ANIMATE_STEP === 0) {
-            frameHistory.push({ ballX, ballY, paddleX, bricks: simulatedBricks.map((b) => b.status) });
-        }
+        frameHistory.push({ ballX, ballY, paddleX, bricks: simulatedBricks.map((b) => b.status), hit: hitThisFrame });
         currentFrame++;
     }
     return frameHistory;
 }
-function getAnimValues(arr) { return arr.map((v) => v.toFixed(0)).join(";"); }
+function getAnimValues(arr) { return arr.map((v) => typeof v === 'number' ? v.toFixed(0) : String(v)).join(";"); }
 function minifySVG(svg) { return svg.replace(/\s{2,}/g, " ").replace(/>\s+</g, "><").replace(/\n/g, ""); }
 function generateSVG(username_1, githubToken_1) {
     return __awaiter(this, arguments, void 0, function* (username, githubToken, options = {}) {
+        var _a, _b, _c, _d;
         const { enableGhostBricks = true, paddleColor = "#1F6FEB", ballColor = "#1F6FEB", bricksColors } = options;
         const colorDays = yield fetchGithubContributionsGraphQL(username, githubToken);
         const brickColumnCount = colorDays.days.length;
@@ -156,7 +114,7 @@ function generateSVG(username_1, githubToken_1) {
             colorPalette = GITHUB_LIGHT;
         else if (bricksColors === "github_dark")
             colorPalette = GITHUB_DARK;
-        else if (Array.isArray(bricksColors) && bricksColors.length === 5)
+        else if (Array.isArray(bricksColors))
             colorPalette = bricksColors;
         const bricks = [];
         for (let c = 0; c < brickColumnCount; c++) {
@@ -168,42 +126,24 @@ function generateSVG(username_1, githubToken_1) {
             }
         }
         const states = simulate(bricks, canvasWidth, canvasHeight, paddleY, enableGhostBricks);
-        const animationDuration = states.length * SECONDS_PER_FRAME * ANIMATE_STEP;
-        const brickAnimData = bricks.map((b, i) => {
-            let firstZero = -1;
-            for (let f = 0; f < states.length; ++f) {
-                if (states[f].bricks[i] !== "visible") {
-                    firstZero = f;
-                    break;
-                }
-            }
-            if (firstZero === -1)
-                return { animate: false, firstZero: undefined };
-            const t = firstZero / (states.length - 1);
-            return { animate: true, keyTimes: `0;${t.toFixed(4)};${t.toFixed(4)};1`, values: "1;1;0;0", firstZero };
-        });
+        const animationDuration = states.length * SECONDS_PER_FRAME;
+        // 1. 공 색상 애니메이션 생성 (충돌 시 빨간색)
+        const ballFillValues = states.map(s => s.hit ? "#ff0000" : ballColor);
         const style = `<style>${colorPalette.map((color, i) => `.c${i}{fill:${color}}`).join("")}</style>`;
         const brickSymbol = `<defs><symbol id="brick"><rect width="${BRICK_SIZE}" height="${BRICK_SIZE}" rx="${BRICK_RADIUS}"/></symbol></defs>`;
         let brickUses = "";
         let particles = "";
         bricks.forEach((brick, i) => {
-            const anim = brickAnimData[i];
-            const levelIdx = parseInt(brick.colorClass.replace("c", ""));
-            const origColor = colorPalette[levelIdx] || colorPalette[0];
-            // ✅ 에러 해결 포인트: 'anim.animate'와 'anim.firstZero'가 확실히 있을 때만 실행하도록 체크
-            if (anim.animate && typeof anim.firstZero === 'number') {
-                const tStart = anim.firstZero / (states.length - 1);
+            let firstZero = states.findIndex(s => s.bricks[i] !== "visible");
+            if (firstZero !== -1) {
+                const tStart = firstZero / (states.length - 1);
                 const tEnd = Math.min(1, tStart + PARTICLE_DURATION / animationDuration);
-                if (enableGhostBricks) {
-                    brickUses += `<use href="#brick" x="${brick.x}" y="${brick.y}" fill="${origColor}"><animate attributeName="fill" values="${origColor};${origColor};${colorPalette[0]};${colorPalette[0]}" keyTimes="0;${tStart.toFixed(4)};${tStart.toFixed(4)};1" dur="${animationDuration}s" repeatCount="indefinite"/></use>`;
-                }
-                else {
-                    brickUses += `<use href="#brick" x="${brick.x}" y="${brick.y}" class="${brick.colorClass}"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;${tStart.toFixed(4)};${tStart.toFixed(4)};1" dur="${animationDuration}s" repeatCount="indefinite"/></use>`;
-                }
+                const origColor = colorPalette[parseInt(brick.colorClass.replace("c", ""))] || colorPalette[0];
+                brickUses += `<use href="#brick" x="${brick.x}" y="${brick.y}" fill="${origColor}"><animate attributeName="fill" values="${origColor};${origColor};${colorPalette[0]};${colorPalette[0]}" keyTimes="0;${tStart.toFixed(4)};${tStart.toFixed(4)};1" dur="${animationDuration}s" repeatCount="indefinite"/></use>`;
                 for (let j = 0; j < PARTICLE_COUNT; j++) {
                     const angle = (j * Math.PI * 2) / PARTICLE_COUNT;
-                    const dx = Math.cos(angle) * 15;
-                    const dy = Math.sin(angle) * 15;
+                    const dx = Math.cos(angle) * 25;
+                    const dy = Math.sin(angle) * 25;
                     particles += `<circle r="${PARTICLE_RADIUS}" fill="${origColor}" opacity="0">
           <animate attributeName="cx" values="${brick.x + BRICK_SIZE / 2};${brick.x + BRICK_SIZE / 2};${brick.x + BRICK_SIZE / 2 + dx}" keyTimes="0;${tStart.toFixed(4)};${tEnd.toFixed(4)}" dur="${animationDuration}s" repeatCount="indefinite"/>
           <animate attributeName="cy" values="${brick.y + BRICK_SIZE / 2};${brick.y + BRICK_SIZE / 2};${brick.y + BRICK_SIZE / 2 + dy}" keyTimes="0;${tStart.toFixed(4)};${tEnd.toFixed(4)}" dur="${animationDuration}s" repeatCount="indefinite"/>
@@ -215,8 +155,26 @@ function generateSVG(username_1, githubToken_1) {
                 brickUses += `<use href="#brick" x="${brick.x}" y="${brick.y}" class="${brick.colorClass}"/>`;
             }
         });
+        /**
+         * 3. 우측 하단 테스트 파티클 (무한 반복)
+         */
+        const tx = canvasWidth - PADDING - 20;
+        const ty = canvasHeight - PADDING - 20;
+        for (let j = 0; j < 8; j++) {
+            const angle = (j * Math.PI * 2) / 8;
+            particles += `<circle r="3" fill="#ff00ff">
+      <animate attributeName="cx" values="${tx};${tx + Math.cos(angle) * 30}" dur="1.5s" repeatCount="indefinite"/>
+      <animate attributeName="cy" values="${ty};${ty + Math.sin(angle) * 30}" dur="1.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="1;0" dur="1.5s" repeatCount="indefinite"/>
+    </circle>`;
+        }
         const paddleRect = `<g transform="translate(0,${paddleY})"><rect width="${PADDLE_WIDTH}" height="${PADDLE_HEIGHT}" rx="${PADDLE_RADIUS}" fill="${paddleColor}"><animate attributeName="x" values="${getAnimValues(states.map(s => s.paddleX))}" dur="${animationDuration}s" repeatCount="indefinite"/></rect></g>`;
-        const ballCircle = `<circle r="${BALL_RADIUS}" fill="${ballColor}"><animate attributeName="cx" values="${getAnimValues(states.map(s => s.ballX))}" dur="${animationDuration}s" repeatCount="indefinite"/><animate attributeName="cy" values="${getAnimValues(states.map(s => s.ballY))}" dur="${animationDuration}s" repeatCount="indefinite"/></circle>`;
+        // 공: 색상 애니메이션 적용 (초기값 포함)
+        const ballCircle = `<circle r="${BALL_RADIUS}" cx="${(_b = (_a = states[0]) === null || _a === void 0 ? void 0 : _a.ballX) !== null && _b !== void 0 ? _b : canvasWidth / 2}" cy="${(_d = (_c = states[0]) === null || _c === void 0 ? void 0 : _c.ballY) !== null && _d !== void 0 ? _d : canvasHeight - 30}" fill="${ballColor}">
+    <animate attributeName="fill" values="${getAnimValues(ballFillValues)}" dur="${animationDuration}s" repeatCount="indefinite"/>
+    <animate attributeName="cx" values="${getAnimValues(states.map(s => s.ballX))}" dur="${animationDuration}s" repeatCount="indefinite"/>
+    <animate attributeName="cy" values="${getAnimValues(states.map(s => s.ballY))}" dur="${animationDuration}s" repeatCount="indefinite"/>
+  </circle>`;
         return minifySVG(`<svg width="${canvasWidth}" height="${canvasHeight}" viewBox="0 0 ${canvasWidth} ${canvasHeight}" xmlns="http://www.w3.org/2000/svg">${style}${brickSymbol}${brickUses}${particles}${paddleRect}${ballCircle}</svg>`);
     });
 }
