@@ -146,7 +146,7 @@ export async function generateSVG(username: string, githubToken: string, options
       for (let j = 0; j < PARTICLE_COUNT; j++) {
         const angle = (j * Math.PI * 2) / PARTICLE_COUNT;
         const dx = Math.cos(angle) * 25; const dy = Math.sin(angle) * 25;
-        particles += `<circle r="${PARTICLE_RADIUS}" fill="${origColor}" opacity="0">
+        particles += `<circle r="${PARTICLE_RADIUS}" fill="${origColor}" opacity="0" cx="${brick.x + BRICK_SIZE/2}" cy="${brick.y + BRICK_SIZE/2}">
           <animate attributeName="cx" values="${brick.x + BRICK_SIZE/2};${brick.x + BRICK_SIZE/2};${brick.x + BRICK_SIZE/2 + dx}" keyTimes="0;${tStart.toFixed(4)};${tEnd.toFixed(4)}" dur="${animationDuration}s" repeatCount="indefinite"/>
           <animate attributeName="cy" values="${brick.y + BRICK_SIZE/2};${brick.y + BRICK_SIZE/2};${brick.y + BRICK_SIZE/2 + dy}" keyTimes="0;${tStart.toFixed(4)};${tEnd.toFixed(4)}" dur="${animationDuration}s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="0;0;1;0;0" keyTimes="0;${tStart.toFixed(4)};${tStart.toFixed(4)};${tEnd.toFixed(4)};1" dur="${animationDuration}s" repeatCount="indefinite"/>
