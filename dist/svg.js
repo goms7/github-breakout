@@ -32,8 +32,21 @@ const BALL_SPEED = 10;
 const PARTICLE_COUNT = 5;
 const PARTICLE_RADIUS = 1.5;
 const PARTICLE_DURATION = 0.5;
-const GITHUB_LIGHT = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
-const GITHUB_DARK = ["#151B23", "#033A16", "#196C2E", "#2EA043", "#56D364"];
+const GITHUB_LIGHT = [
+    "#ebedf0",
+    "#fbc2eb",
+    "#fa71cd",
+    "#d83395",
+    "#a61265",
+];
+// GITHUB_DARK: 어두운 모드용 (네온 핑크 테마)
+const GITHUB_DARK = [
+    "#151B23",
+    "#4a004a",
+    "#7b007b",
+    "#b900b9",
+    "#ff00ff",
+];
 function fetchGithubContributionsGraphQL(userName, githubToken) {
     return __awaiter(this, void 0, void 0, function* () {
         const query = `
