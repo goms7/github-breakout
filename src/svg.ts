@@ -15,8 +15,8 @@ const BALL_SPEED = 10;
 
 export type ColorPalette = [string, string, string, string, string];
 
-const GITHUB_LIGHT: ColorPalette = ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"];
-const GITHUB_DARK: ColorPalette = ["#151B23", "#033A16", "#196C2E", "#2EA043", "#56D364"];
+const GITHUB_LIGHT: ColorPalette = ["#f0f0f0", "#ffb7ff", "#ff77ff", "#ff00ff", "#a100a1"];
+const GITHUB_DARK: ColorPalette = ["#1a1a1b", "#4a004a", "#7b007b", "#b900b9", "#ff00ff"];
 
 export interface Options {
   enableGhostBricks?: boolean;
